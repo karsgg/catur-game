@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Game Catur Website</title>
+<style>
+body{
+  margin:0;
+  padding:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  background:#f2f2f2;
+  font-family:Arial, sans-serif;
+}
+#board{
+  display:grid;
+  grid-template-columns:repeat(8,80px);
+  grid-template-rows:repeat(8,80px);
+  border:4px solid #333;
+}
+
+.square{
+  width:80px;
+  height:80px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:52px;
+  cursor:pointer;
+}
+.cell{width:70px;height:70px;display:flex;align-items:center;justify-content:center;font-size:42px;cursor:pointer}
+.white{background:#f0d9b5}
+.black{background:#b58863}
+.panel select,.panel button{padding:6px;margin:5px}
+</style>
+</head>
+<body>
+<h1>Game Catur Website</h1>
+<div class="panel">
+Tim:
+<select id="team"><option value="white">Putih</option><option value="black">Hitam</option></select>
+Level:
+<select id="level">
+<option value="1">Level 1 (Mudah)</option>
+<option value="2">Level 2 (Sedang)</option>
+<option value="3">Level 3 (Sulit)</option>
+</select>
+<button onclick="startGame()">Mulai</button>
+<button onclick="undoMove()">Undo</button>
+</div>
+<div id="board"></div>
+
+<script>
+/* ================= DATA ================= */
+const pieces={r:'♜',n:'♞',b:'♝',q:'♛',k:'♚',p:'♟',R:'♖',N:'♘',B:'♗',Q:'♕',K:'♔',P:'♙'}
+let board=[],turn='white',playerColor='white',selected=null;
+let history=[]; // riwayat langkah (undo)
+
+/* ================= INIT ================= */
+function startGame(){playerColor=team.value;initBoard();render()}
+function initBoard(){board=[
+['r','n','b','q','k','b','n','r'],
+['p','p','p','p','p','p','p','p'],
+['','','','','','','',''],
+['','','','','','','',''],
+['','','','','','','',''],
+['','','','','','','',''],
+['P','P','P','P','P','P','P','P'],
+['R','N','B','Q','K','B','N','R']];turn='white'}
+
+/* ================= RENDER ================= */
+function render(){const b=document.getElementById('board');b.innerHTML='';
+for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+const d=document.createElement('div');
+d.className='cell '+((r+c)%2?'black':'white');
+d.onclick=()=>clickCell(r,c);
+if(board[r][c])d.textContent=pieces[board[r][c]];
+b.appendChild(d)}checkEndGame()}
+
+/* ================= INPUT ================= */
+function clickCell(r,c){if(turn!==playerColor)return;
+const p=board[r][c];
+if(selected){move(selected.r,selected.c,r,c);selected=null}
+else if(p&&isPlayerPiece(p))selected={r,c}}
+
+function isPlayerPiece(p){return playerColor==='white'?p===p.toUpperCase():p===p.toLowerCase()}
+
+/* ================= MOVE ================= */
+function move(sr,sc,dr,dc){
+// SIMPAN KONDISI SEBELUM LANGKAH (UNTUK UNDO)
+history.push({board:JSON.parse(JSON.stringify(board)),turn:turn});if(!isValidMove(sr,sc,dr,dc))return;
+const save=board[dr][dc];board[dr][dc]=board[sr][sc];board[sr][sc]='';
+if(inCheck(turn)){board[sr][sc]=board[dr][dc];board[dr][dc]=save;return}
+turn=turn==='white'?'black':'white';render();
+if(turn!==playerColor)setTimeout(aiMove,300)}
+
+/* ================= RULES ================= */
+function clearPath(sr,sc,dr,dc){let r=Math.sign(dr-sr),c=Math.sign(dc-sc);sr+=r;sc+=c;
+while(sr!==dr||sc!==dc){if(board[sr][sc]!=='')return false;sr+=r;sc+=c}return true}
+
+function isValidMove(sr,sc,dr,dc){if(sr===dr&&sc===dc)return false;
+const p=board[sr][sc],t=board[dr][dc];if(!p)return false;
+const isWhite=p===p.toUpperCase();
+if(t&&(isWhite===(t===t.toUpperCase())))return false;
+if(t&&t.toLowerCase()==='k')return false;
+const dR=dr-sr,dC=dc-sc;
+
+if(p.toLowerCase()==='p'){
+const dir=isWhite?-1:1,start=isWhite?6:1;
+if(dC===0&&dR===dir&&!t)return true;
+if(dC===0&&sr===start&&dR===2*dir&&!t&&!board[sr+dir][sc])return true;
+if(Math.abs(dC)===1&&dR===dir&&t)return true;
+return false}
+
+if(p.toLowerCase()==='r'&&(dR===0||dC===0)&&clearPath(sr,sc,dr,dc))return true;
+if(p.toLowerCase()==='n'&&(Math.abs(dR)*Math.abs(dC)===2))return true;
+if(p.toLowerCase()==='b'&&Math.abs(dR)===Math.abs(dC)&&clearPath(sr,sc,dr,dc))return true;
+if(p.toLowerCase()==='q'&&(dR===0||dC===0||Math.abs(dR)===Math.abs(dC))&&clearPath(sr,sc,dr,dc))return true;
+if(p.toLowerCase()==='k'&&Math.abs(dR)<=1&&Math.abs(dC)<=1)return true;
+return false}
+
+/* ================= CHECK & CHECKMATE ================= */
+function findKing(color){for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=board[r][c];
+if(p&&p.toLowerCase()==='k'&&((color==='white')===(p===p.toUpperCase())))return{r,c}}}
+
+function inCheck(color){const k=findKing(color);
+for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=board[r][c];
+if(p&&((color==='white')!==(p===p.toUpperCase())))
+if(isValidMove(r,c,k.r,k.c))return true}return false}
+
+function hasSafeMove(color){for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=board[r][c];
+if(p&&((color==='white')===(p===p.toUpperCase())))
+for(let dr=0;dr<8;dr++)for(let dc=0;dc<8;dc++){
+if(isValidMove(r,c,dr,dc)){
+const save=board[dr][dc];board[dr][dc]=p;board[r][c]='';
+const ok=!inCheck(color);board[r][c]=p;board[dr][dc]=save;
+if(ok)return true}}}return false}
+
+function checkEndGame(){if(inCheck(turn)&&!hasSafeMove(turn)){
+alert('SKAKMAT! '+(turn==='white'?'Hitam':'Putih')+' kalah');turn=null}}
+
+/* ================= AI ================= */
+function aiMove(){
+  const color = turn;
+  const moves = allSafeMoves(color);
+  if(moves.length===0){
+    alert('SKAKMAT! '+(color==='white'?'Hitam':'Putih')+' kalah');
+    turn=null;return;
+  }
+
+  // === JIKA RAJA SKAK, WAJIB SELAMATKAN ===
+  if(inCheck(color)){
+    const safeMoves = [];
+    for(const m of moves){
+      const save = board[m.dr][m.dc];
+      board[m.dr][m.dc]=board[m.r][m.c]; board[m.r][m.c]='';
+      const aman = !inCheck(color);
+      board[m.r][m.c]=board[m.dr][m.dc]; board[m.dr][m.dc]=save;
+      if(aman) safeMoves.push(m);
+    }
+    if(safeMoves.length>0){
+      const m = safeMoves[Math.floor(Math.random()*safeMoves.length)];
+      board[m.dr][m.dc]=board[m.r][m.c]; board[m.r][m.c]='';
+      turn = playerColor; render();
+      return;
+    }
+  }
+
+  // === VARIASI LANGKAH CERDAS (ANTI MONOTON) ===
+  let scored = moves.map(m=>{
+    const target = board[m.dr][m.dc];
+    let score = value(target);
+    score += Math.random()*0.5; // variasi
+    return {...m,score};
+  });
+
+  // sort langkah terbaik
+  scored.sort((a,b)=>b.score-a.score);
+
+  let choice;
+  if(level.value==1){
+    choice = scored[Math.floor(Math.random()*scored.length)];
+  } else if(level.value==2){
+    choice = scored[Math.floor(Math.random()*Math.min(3,scored.length))];
+  } else {
+    choice = scored[0];
+  }
+
+  board[choice.dr][choice.dc]=board[choice.r][choice.c];
+  board[choice.r][choice.c]='';
+  turn = playerColor; render();
+}
+
+function allSafeMoves(color){const m=[];
+for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=board[r][c];
+if(p&&((color==='white')===(p===p.toUpperCase())))
+for(let dr=0;dr<8;dr++)for(let dc=0;dc<8;dc++)
+if(isValidMove(r,c,dr,dc)){
+const save=board[dr][dc];board[dr][dc]=p;board[r][c]='';
+const ok=!inCheck(color);board[r][c]=p;board[dr][dc]=save;
+if(ok)m.push({r,c,dr,dc})}}
+return m}
+
+function minimaxRoot(depth,color){let best=-9999,bestMove=null;
+for(const m of allSafeMoves(color)){
+const save=board[m.dr][m.dc];board[m.dr][m.dc]=board[m.r][m.c];board[m.r][m.c]='';
+const score=minimax(depth-1,false,color);
+board[m.r][m.c]=board[m.dr][m.dc];board[m.dr][m.dc]=save;
+if(score>best){best=score;bestMove=m}}
+return bestMove}
+
+function minimax(d,max,color){if(d===0)return evaluate(color);
+const moves=allSafeMoves(max?color:(color==='white'?'black':'white'));
+let best=max?-9999:9999;
+for(const m of moves){const save=board[m.dr][m.dc];board[m.dr][m.dc]=board[m.r][m.c];board[m.r][m.c]='';
+const s=minimax(d-1,!max,color);board[m.r][m.c]=board[m.dr][m.dc];board[m.dr][m.dc]=save;
+best=max?Math.max(best,s):Math.min(best,s)}return best}
+
+function value(p){if(!p)return 0;return{p:1,n:3,b:3,r:5,q:9,k:100}[p.toLowerCase()]}
+function evaluate(color){let sum=0;
+for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=board[r][c];if(p)
+sum+=( (color==='white')===(p===p.toUpperCase())?1:-1)*value(p)}return sum}
+function undoMove(){
+  if(history.length===0 || turn===null) return;
+  const last = history.pop();
+  board = last.board;
+  turn = last.turn;
+  selected = null;
+  render();
+}
+
+</script>
+</body>
+</html>
